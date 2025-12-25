@@ -1,0 +1,15 @@
+[Unit]
+Description=Robot Controller with Action-Specific GIF Player
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/home/lala/main/venv/bin/python3 /home/lala/main/main.py
+WorkingDirectory=/home/lala/main
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=lala
+
+[Install]
+WantedBy=multi-user.target
