@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Robot Demo Controller</title>
+        <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }
+
+            .demo-banner {
+                background: #f59e0b;
+                color: white;
+                padding: 15px;
+                text-align: center;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                font-weight: bold;
+                box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+            }
+
+            .main-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+
+            @media (max-width: 1024px) {
+                .main-container {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .control-panel,
+            .visualization-panel {
+                background: white;
+                border-radius: 20px;
+                padding: 30px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            }
+
+            h1,
+            h2 {
+                color: #667eea;
+                margin-bottom: 15px;
+            }
+
+            h2 {
+                font-size: 1.5em;
+                border-bottom: 2px solid #667eea;
+                padding-bottom: 10px;
+            }
+
+            .status-bar {
+                background: #f0f0f0;
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+
+            .status-indicator {
+                display: inline-block;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                margin-right: 8px;
+                animation: pulse 2s infinite;
+            }
+
+            .status-connected {
+                background: #10b981;
+            }
+
+            .status-disconnected {
+                background: #ef4444;
+            }
+
+            .status-executing {
+                background: #f59e0b;
+            }
+
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.5;
+                }
+            }
+
+            .control-section {
+                margin-bottom: 25px;
+            }
+
+            .section-title {
+                font-size: 1.1em;
+                color: #333;
+                margin-bottom: 15px;
+                font-weight: 600;
+            }
+
+            .direction-pad {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+
+            .control-btn {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 20px;
+                border-radius: 15px;
+                font-size: 1.5em;
+                cursor: pointer;
+                transition: all 0.3s;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            }
+
+            .control-btn:hover:not(:disabled) {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            }
+
+            .control-btn:active:not(:disabled) {
+                transform: translateY(0);
+            }
+
+            .control-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .empty-cell {
+                background: transparent;
+            }
+
+            .action-buttons {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+
+            .action-btn {
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white;
+                border: none;
+                padding: 15px;
+                border-radius: 12px;
+                font-size: 1em;
+                cursor: pointer;
+                transition: all 0.3s;
+                box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+            }
+
+            .action-btn:hover:not(:disabled) {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+            }
+
+            .action-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .stop-btn {
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                grid-column: 1 / -1;
+                font-size: 1.2em;
+                padding: 20px;
+                opacity: 1 !important;
+                cursor: pointer !important;
+            }
+
+            .stop-btn:disabled {
+                opacity: 1 !important;
+                cursor: pointer !important;
+            }
+
+            .slider-control {
+                margin-bottom: 20px;
+            }
+
+            .slider-label {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+                color: #666;
+                font-size: 0.9em;
+            }
+
+            .slider {
+                width: 100%;
+                height: 8px;
+                border-radius: 5px;
+                background: #ddd;
+                outline: none;
+                -webkit-appearance: none;
+            }
+
+            .slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: #667eea;
+                cursor: pointer;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            }
+
+            .slider::-moz-range-thumb {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: #667eea;
+                cursor: pointer;
+                border: none;
+            }
+
+            .message-box {
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 15px;
+                display: none;
+                animation: slideIn 0.3s;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .message-success {
+                background: #d1fae5;
+                color: #065f46;
+                border: 1px solid #10b981;
+            }
+
+            .message-error {
+                background: #fee2e2;
+                color: #991b1b;
+                border: 1px solid #ef4444;
+            }
+
+            .distance-display {
+                background: #f9fafb;
+                padding: 15px;
+                border-radius: 10px;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .distance-item {
+                text-align: center;
+                padding: 10px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            }
+
+            .distance-label {
+                font-size: 0.8em;
+                color: #666;
+                margin-bottom: 5px;
+            }
+
+            .distance-value {
+                font-size: 1.5em;
+                font-weight: bold;
+                color: #667eea;
+            }
+
+            .robot-canvas {
+                width: 100%;
+                height: 400px;
+                background: #1a1a2e;
+                border-radius: 15px;
+                margin-bottom: 20px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+
+            .stat-card {
+                background: #f9fafb;
+                padding: 15px;
+                border-radius: 10px;
+                text-align: center;
+            }
+
+            .stat-label {
+                font-size: 0.9em;
+                color: #666;
+                margin-bottom: 5px;
+            }
+
+            .stat-value {
+                font-size: 1.8em;
+                font-weight: bold;
+                color: #667eea;
+            }
+
+            .reset-btn {
+                background: #6b7280;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                width: 100%;
+                margin-top: 15px;
+                font-size: 0.9em;
+                transition: all 0.3s;
+            }
+
+            .reset-btn:hover {
+                background: #4b5563;
+                transform: translateY(-2px);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="demo-banner">
+            🧪 DEMO MODE - No Hardware Required | Testing Wireless Communication
+        </div>
+
+        <div class="main-container">
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <h2>🎮 Control Panel</h2>
+
+                <div class="status-bar">
+                    <span
+                        id="statusIndicator"
+                        class="status-indicator status-disconnected"
+                    ></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+
+                <div id="messageBox" class="message-box"></div>
+
+                <div class="control-section">
+                    <div class="section-title">Movement Control</div>
+
+                    <div class="slider-control">
+                        <div class="slider-label">
+                            <span>Distance/Angle</span>
+                            <span id="valueDisplay">1.0 m/°</span>
+                        </div>
+                        <input
+                            type="range"
+                            id="valueSlider"
+                            class="slider"
+                            min="0.5"
+                            max="3"
+                            step="0.1"
+                            value="1.0"
+                        />
+                    </div>
+
+                    <div class="direction-pad">
+                        <div class="empty-cell"></div>
+                        <button
+                            class="control-btn"
+                            onclick="sendCommand('forward')"
+                            id="btnForward"
+                        >
+                            ↑
+                        </button>
+                        <div class="empty-cell"></div>
+
+                        <button
+                            class="control-btn"
+                            onclick="sendCommand('left')"
+                            id="btnLeft"
+                        >
+                            ←
+                        </button>
+                        <div class="empty-cell"></div>
+                        <button
+                            class="control-btn"
+                            onclick="sendCommand('right')"
+                            id="btnRight"
+                        >
+                            →
+                        </button>
+
+                        <div class="empty-cell"></div>
+                        <button
+                            class="control-btn"
+                            onclick="sendCommand('backward')"
+                            id="btnBackward"
+                        >
+                            ↓
+                        </button>
+                        <div class="empty-cell"></div>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="section-title">Actions</div>
+                    <div class="action-buttons">
+                        <button
+                            class="action-btn"
+                            onclick="sendCommand('dance')"
+                            id="btnDance"
+                        >
+                            💃 Dance
+                        </button>
+                        <button
+                            class="action-btn"
+                            onclick="sendCommand('hi')"
+                            id="btnHi"
+                        >
+                            👋 Say Hi
+                        </button>
+                        <button
+                            class="action-btn stop-btn"
+                            onclick="sendCommand('stop')"
+                            id="btnStop"
+                        >
+                            ⛔ STOP
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="section-title">Sensor Data (Simulated)</div>
+                    <div class="distance-display">
+                        <div class="distance-item">
+                            <div class="distance-label">Front Distance</div>
+                            <div class="distance-value" id="frontDistance">
+                                --
+                            </div>
+                        </div>
+                        <div class="distance-item">
+                            <div class="distance-label">Rear Distance</div>
+                            <div class="distance-value" id="rearDistance">
+                                --
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualization Panel -->
+            <div class="visualization-panel">
+                <h2>📊 Robot Visualization</h2>
+
+                <canvas id="robotCanvas" class="robot-canvas"></canvas>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Position X</div>
+                        <div class="stat-value" id="posX">0.0 m</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Position Y</div>
+                        <div class="stat-value" id="posY">0.0 m</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Angle</div>
+                        <div class="stat-value" id="angle">0°</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Commands</div>
+                        <div class="stat-value" id="commandCount">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Distance Traveled</div>
+                        <div class="stat-value" id="totalDistance">0.0 m</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Rotation</div>
+                        <div class="stat-value" id="totalRotation">0°</div>
+                    </div>
+                </div>
+
+                <button class="reset-btn" onclick="resetPosition()">
+                    🔄 Reset Position
+                </button>
+            </div>
+        </div>
+
+        <script>
+            const socket = io();
+            let isExecuting = false;
+
+            // Canvas setup
+            const canvas = document.getElementById("robotCanvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 400;
+
+            let robotPos = {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                angle: 0,
+            };
+            let trail = [];
+            const SCALE = 50; // pixels per meter
+
+            // Slider update
+            const slider = document.getElementById("valueSlider");
+            const valueDisplay = document.getElementById("valueDisplay");
+
+            slider.addEventListener("input", function () {
+                const value = parseFloat(this.value);
+                valueDisplay.textContent = value.toFixed(1) + " m/°";
+            });
+
+            // Socket.io event handlers
+            socket.on("connect", function () {
+                console.log("✅ Connected to server");
+                updateStatus("connected", "Connected - Demo Mode");
+            });
+
+            socket.on("disconnect", function () {
+                console.log("❌ Disconnected from server");
+                updateStatus("disconnected", "Disconnected");
+            });
+
+            socket.on("emergency_stop_activated", function (data) {
+                console.log("🛑 Emergency stop activated!");
+                showMessage("🛑 " + data.message, "error");
+                isExecuting = false;
+                enableButtons();
+            });
+
+            socket.on("status_update", function (data) {
+                console.log("📊 Status update:", data);
+                if (data.executing) {
+                    updateStatus(
+                        "executing",
+                        "Executing: " + data.last_command,
+                    );
+                    disableButtons();
+                } else {
+                    updateStatus("connected", "Ready - Demo Mode");
+                    enableButtons();
+                    if (data.error) {
+                        showMessage(data.error, "error");
+                    }
+                }
+
+                // Update statistics
+                if (data.command_count !== undefined) {
+                    document.getElementById("commandCount").textContent =
+                        data.command_count;
+                }
+                if (data.total_distance !== undefined) {
+                    document.getElementById("totalDistance").textContent =
+                        data.total_distance.toFixed(2) + " m";
+                }
+                if (data.total_rotations !== undefined) {
+                    document.getElementById("totalRotation").textContent =
+                        data.total_rotations.toFixed(1) + "°";
+                }
+            });
+
+            socket.on("command_result", function (data) {
+                console.log("✅ Command result:", data);
+                isExecuting = false;
+                enableButtons();
+
+                if (data.success) {
+                    showMessage(data.message, "success");
+                } else {
+                    showMessage(data.message, "error");
+                }
+            });
+
+            socket.on("distance_update", function (data) {
+                if (data.error) {
+                    console.error("Distance error:", data.error);
+                    return;
+                }
+
+                const distanceText =
+                    data.distance < 999
+                        ? data.distance.toFixed(1) + " cm"
+                        : "N/A";
+
+                if (data.sensor === "front") {
+                    document.getElementById("frontDistance").textContent =
+                        distanceText;
+                } else {
+                    document.getElementById("rearDistance").textContent =
+                        distanceText;
+                }
+            });
+
+            socket.on("position_update", function (data) {
+                // Update position display
+                document.getElementById("posX").textContent =
+                    data.x.toFixed(2) + " m";
+                document.getElementById("posY").textContent =
+                    data.y.toFixed(2) + " m";
+                document.getElementById("angle").textContent =
+                    data.angle.toFixed(1) + "°";
+
+                // Update canvas
+                const canvasCenterX = canvas.width / 2;
+                const canvasCenterY = canvas.height / 2;
+                robotPos.x = canvasCenterX + data.x * SCALE;
+                robotPos.y = canvasCenterY - data.y * SCALE; // Invert Y for canvas
+                robotPos.angle = data.angle;
+
+                // Add to trail
+                trail.push({ x: robotPos.x, y: robotPos.y });
+                if (trail.length > 100) trail.shift();
+
+                drawRobot();
+            });
+
+            socket.on("obstacle_detected", function (data) {
+                showMessage(
+                    `⚠️ ${data.sensor} obstacle at ${data.distance.toFixed(1)}cm!`,
+                    "error",
+                );
+            });
+
+            // Drawing function
+            function drawRobot() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw grid
+                ctx.strokeStyle = "#2a2a3e";
+                ctx.lineWidth = 1;
+                for (let i = 0; i < canvas.width; i += SCALE) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, canvas.height);
+                    ctx.stroke();
+                }
+                for (let i = 0; i < canvas.height; i += SCALE) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(canvas.width, i);
+                    ctx.stroke();
+                }
+
+                // Draw center cross
+                ctx.strokeStyle = "#667eea";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2 - 10, canvas.height / 2);
+                ctx.lineTo(canvas.width / 2 + 10, canvas.height / 2);
+                ctx.moveTo(canvas.width / 2, canvas.height / 2 - 10);
+                ctx.lineTo(canvas.width / 2, canvas.height / 2 + 10);
+                ctx.stroke();
+
+                // Draw trail
+                if (trail.length > 1) {
+                    ctx.strokeStyle = "rgba(102, 126, 234, 0.5)";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(trail[0].x, trail[0].y);
+                    for (let i = 1; i < trail.length; i++) {
+                        ctx.lineTo(trail[i].x, trail[i].y);
+                    }
+                    ctx.stroke();
+                }
+
+                // Draw robot
+                ctx.save();
+                ctx.translate(robotPos.x, robotPos.y);
+                ctx.rotate((-robotPos.angle * Math.PI) / 180);
+
+                // Robot body
+                ctx.fillStyle = "#667eea";
+                ctx.fillRect(-15, -20, 30, 40);
+
+                // Robot front indicator
+                ctx.fillStyle = "#f59e0b";
+                ctx.beginPath();
+                ctx.moveTo(0, -20);
+                ctx.lineTo(-10, -30);
+                ctx.lineTo(10, -30);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            // Send command function
+            function sendCommand(type) {
+                // STOP button works ALWAYS - even during execution
+                if (type === "stop") {
+                    socket.emit("command", {
+                        type: "stop",
+                        value: 0,
+                    });
+                    showMessage("🛑 EMERGENCY STOP!", "error");
+                    return;
+                }
+
+                // Other commands wait if already executing
+                if (isExecuting) {
+                    showMessage(
+                        "Please wait for current command to finish",
+                        "error",
+                    );
+                    return;
+                }
+
+                const value = parseFloat(slider.value);
+                isExecuting = true;
+                disableButtons();
+
+                socket.emit("command", {
+                    type: type,
+                    value: value,
+                });
+
+                showMessage("🚀 Executing " + type + "...", "success");
+            }
+
+            function resetPosition() {
+                socket.emit("reset_position");
+                trail = [];
+                robotPos = {
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    angle: 0,
+                };
+                drawRobot();
+                showMessage("🔄 Position reset", "success");
+            }
+
+            // UI helper functions
+            function updateStatus(status, text) {
+                const indicator = document.getElementById("statusIndicator");
+                const statusText = document.getElementById("statusText");
+
+                indicator.className = "status-indicator status-" + status;
+                statusText.textContent = text;
+            }
+
+            function showMessage(message, type) {
+                const messageBox = document.getElementById("messageBox");
+                messageBox.className = "message-box message-" + type;
+                messageBox.textContent = message;
+                messageBox.style.display = "block";
+
+                setTimeout(function () {
+                    messageBox.style.display = "none";
+                }, 3000);
+            }
+
+            function disableButtons() {
+                const buttons = document.querySelectorAll(
+                    ".control-btn, .action-btn",
+                );
+                buttons.forEach((btn) => {
+                    // Never disable the stop button!
+                    if (btn.id !== "btnStop") {
+                        btn.disabled = true;
+                    }
+                });
+            }
+
+            function enableButtons() {
+                const buttons = document.querySelectorAll(
+                    ".control-btn, .action-btn",
+                );
+                buttons.forEach((btn) => (btn.disabled = false));
+            }
+
+            // Periodic distance updates
+            setInterval(function () {
+                if (!isExecuting) {
+                    socket.emit("get_distance", { sensor: "front" });
+                    socket.emit("get_distance", { sensor: "rear" });
+                }
+            }, 1000);
+
+            // Keyboard controls
+            document.addEventListener("keydown", function (event) {
+                if (isExecuting) return;
+
+                switch (event.key) {
+                    case "ArrowUp":
+                    case "w":
+                        sendCommand("forward");
+                        event.preventDefault();
+                        break;
+                    case "ArrowDown":
+                    case "s":
+                        sendCommand("backward");
+                        event.preventDefault();
+                        break;
+                    case "ArrowLeft":
+                    case "a":
+                        sendCommand("left");
+                        event.preventDefault();
+                        break;
+                    case "ArrowRight":
+                    case "d":
+                        sendCommand("right");
+                        event.preventDefault();
+                        break;
+                    case " ":
+                        sendCommand("stop");
+                        event.preventDefault();
+                        break;
+                }
+            });
+
+            // Initial draw
+            drawRobot();
+        </script>
+    </body>
+</html>
